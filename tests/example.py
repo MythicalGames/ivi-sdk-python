@@ -153,13 +153,6 @@ async def main(ivi_server:str = None, ivi_envid:str = None, ivi_apikey:str = Non
     """
     logging.basicConfig()
 
-    if ivi_server == None:
-        ivi_server = os.getenv('IVI_HOST')
-    if ivi_envid == None:
-        ivi_envid = os.getenv('IVI_ENV_ID')
-    if ivi_apikey == None:
-        ivi_apikey = os.getenv('IVI_API_KEY')
-
     if ivi_server is None or ivi_envid is None or ivi_apikey is None:
         raise RuntimeError('Usage: <server> <envid> <apikey> [sleep_loop_seconds] [num_loops]')
 
@@ -182,18 +175,16 @@ async def main(ivi_server:str = None, ivi_envid:str = None, ivi_apikey:str = Non
 
     
 if __name__ == '__main__':
-    ivi_server, ivi_envid, ivi_apikey = None, None, None
     argc = len(sys.argv)
-    if argc >= 2:
-        ivi_server = sys.argv[1]
-    if argc >= 3:
-        ivi_envid = sys.argv[2]
-    if argc >= 4:
-        ivi_apikey = sys.argv[3]
+    ivi_server = os.getenv('IVI_HOST') if argc < 2 else sys.argv[1]
+    ivi_envid = os.getenv('IVI_ENV_ID') if argc < 3 else sys.argv[2]
+    ivi_apikey = os.getenv('IVI_API_KEY') if argc < 4 else sys.argv[3]
     
     global global_exception_handler_hit
     global_exception_handler_hit = False
     asyncio.get_event_loop().run_until_complete(main(ivi_server=ivi_server, ivi_envid=ivi_envid, ivi_apikey=ivi_apikey))
-    print('Finished!')
     if global_exception_handler_hit:
+        print('Finished but unhandled error detected')
         sys.exit(1) # report the error to any testing scripts
+    print('Finished!')
+        

@@ -6,6 +6,8 @@ import pytest
 import random
 
 from ivi_sdk.ivi_client import IVIClient
+from ivi_sdk.api.item.rpc_pb2_grpc import ItemServiceStub
+from ivi_sdk.api.item.definition_pb2 import IssueItemRequest
 from ivi_sdk.common.item.definition_pb2 import ItemState
 from ivi_sdk.common.itemtype.definition_pb2 import ItemTypeState
 from ivi_sdk.common.order.definition_pb2 import OrderState
@@ -191,6 +193,7 @@ async def run_server() -> None:
     await server.start()
     return server
 
+
 @pytest.mark.asyncio
 async def test_client():
 
@@ -240,3 +243,70 @@ async def test_client():
 
         assert num_messages == len(player_stream_service.confirms)
         assert len(player_stream_service.updates) == len(player_stream_service.confirms)
+
+        # ensure channel closure
+        try:
+            item_service = ItemServiceStub(channel)
+            await item_service.IssueItem(IssueItemRequest())
+            assert False
+        except grpc.aio.UsageError:
+            pass
+        
+
+@pytest.mark.asyncio
+async def test_client_async_with():
+
+    assert num_messages % 2 == 0
+    server = await run_server()
+    
+    item_stream_service = FakeItemStreamServicerImpl()
+    item_type_stream_service = FakeItemTypeStreamServicerImpl()
+    order_stream_service = FakeOrderStreamServicerImpl()
+    player_stream_service = FakePlayerStreamServicerImpl()
+    
+    add_ItemStreamServicer_to_server(item_stream_service, server)
+    add_ItemTypeStatusStreamServicer_to_server(item_type_stream_service, server)
+    add_OrderStreamServicer_to_server(order_stream_service, server)
+    add_PlayerStreamServicer_to_server(player_stream_service, server)
+    
+    ivi_server = 'localhost:' + listen_port
+    async with grpc.aio.insecure_channel(ivi_server) as channel:
+        async with IVIClient(ivi_server, ivi_envid, random_string(64),
+                        item_update, itemtype_update, order_update, player_updated,
+                        channel = channel) as ivi_client:
+        
+            assert ivi_client.item_service is not None
+            assert ivi_client.itemtype_service is not None
+            assert ivi_client.order_service is not None
+            assert ivi_client.payment_service is not None
+            assert ivi_client.player_service is not None
+            
+            [asyncio.ensure_future(coro()) for coro in ivi_client.coroutines()]
+
+            await asyncio.wait_for(item_stream_service.complete.wait(), timeout=10)
+            await asyncio.wait_for(item_type_stream_service.complete.wait(), timeout=10)
+            await asyncio.wait_for(order_stream_service.complete.wait(), timeout=10)
+            await asyncio.wait_for(player_stream_service.complete.wait(), timeout=10)
+        
+        # ensure channel closure
+        try:
+            item_service = ItemServiceStub(channel)
+            await item_service.IssueItem(IssueItemRequest())
+            assert False
+        except grpc.aio.UsageError:
+            pass
+
+            
+    await server.stop(1.0)
+    
+    assert num_messages == len(item_stream_service.confirms)
+    assert len(item_stream_service.updates) == len(item_stream_service.confirms)
+
+    assert num_messages == len(item_type_stream_service.confirms)
+    assert len(item_type_stream_service.updates) == len(item_type_stream_service.confirms)
+
+    assert num_messages == len(order_stream_service.confirms)
+    assert len(order_stream_service.updates) == len(order_stream_service.confirms)
+
+    assert num_messages == len(player_stream_service.confirms)
+    assert len(player_stream_service.updates) == len(player_stream_service.confirms)
