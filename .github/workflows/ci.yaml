@@ -20,7 +20,7 @@ jobs:
           architecture: x64
       - name: run python script
         env:
-          SCRIPT: "../helloworld.py"
+          SCRIPT: "helloworld.py"
         run: |
           sh .github/scripts/run_python.sh
     
