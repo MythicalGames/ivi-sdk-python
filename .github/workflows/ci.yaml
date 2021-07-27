@@ -1,8 +1,8 @@
 name: continuous integration
 on:
   workflow_dispatch:
-  # push:
-  #  branches: [master]
+  push:
+    branches: [develop]
   
 jobs:
   build-docker:
