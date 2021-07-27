@@ -30,8 +30,10 @@ jobs:
         env:
           SCRIPT: "./tests/example.py"
           URL: sdk-api.dev.iviengine.com:443
+          IVI_SDK_API_KEY: ${{ secrets.IVI_SDK_API_KEY }}
+          IVI_SDK_ENV_ID:  ${{ secrets.IVI_SDK_ENV_ID }}
           SLEEP_LOOP_SECONDS: 45
-          NUM_LOOPS: 12
+          NUM_LOOPS:          12
         run: |
           bash .github/scripts/run_python.sh
     
