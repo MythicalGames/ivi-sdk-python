@@ -18,6 +18,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           architecture: x64
+      - name: pip install 
+        env: 
+          REQUIREMENTS: "requirements.txt"
+        run: |
+          sh .github/scripts/pip_install.sh
       - name: run python script
         env:
           SCRIPT: "helloworld.py"
