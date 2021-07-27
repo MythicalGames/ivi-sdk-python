@@ -18,14 +18,20 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           architecture: x64
-      - name: pip install 
-        env: 
-          REQUIREMENTS: "requirements.txt"
+      - name: configure environment
         run: |
-          sh .github/scripts/pip_install.sh
+          sh .github/scripts/configure_env.sh
+      - name: run pytest
+        env:
+          SCRIPT: "./tests/test_ivi_client.py"
+        run: |
+          bash .github/scripts/run_tests.sh
       - name: run python script
         env:
-          SCRIPT: "helloworld.py"
+          SCRIPT: "./tests/example.py"
+          URL: sdk-api.dev.iviengine.com:443
+          SLEEP_LOOP_SECONDS: 45
+          NUM_LOOPS: 12
         run: |
-          sh .github/scripts/run_python.sh
+          bash .github/scripts/run_python.sh
     
