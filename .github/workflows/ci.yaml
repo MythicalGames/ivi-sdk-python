@@ -20,7 +20,7 @@ jobs:
           architecture: x64
       - name: configure environment
         run: |
-          sh .github/scripts/configure_env.sh
+          bash .github/scripts/configure_env.sh
       - name: run pytest
         env:
           SCRIPT: "./tests/test_ivi_client.py"
