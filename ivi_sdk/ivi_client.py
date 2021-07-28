@@ -53,7 +53,9 @@ class IVIClient:
     Methods
     -------
     coroutines()
-        Returns a tuple of the coroutines which should be scheduled with eg asyncio.
+        Returns a tuple of the coroutines which should be scheduled with asyncio
+        and will run until close() is called.
+        Eg in Python 3.6: [asyncio.ensure_future(coro()) for coro in ivi_client.coroutines()].
         The coroutines will execute the callbacks and, unless an Exception is
         raised, will send a confirmation message back to the IVI host.
         The coroutines will log and continue after catching an Exception - if you
@@ -64,7 +66,7 @@ class IVIClient:
 
     default_host = 'sdk-api.iviengine.com:443'
     default_channel_options = [('grpc.keepalive_time_ms', 30 * 1000)]
-    default_sleep_on_cloudflare_error = 10
+    default_sleep_on_cloudflare_error = 1
 
     class IVIMetadataPlugin(grpc.AuthMetadataPlugin):
         """
@@ -126,7 +128,7 @@ class IVIClient:
         self.payment_service = PaymentServiceStub(self.channel)
         self.player_service = PlayerServiceStub(self.channel)
 
-        subscribe_request = IVISubscribeRequest(environment_id=envid)
+        subscribe_request = IVISubscribeRequest(environment_id=self.envid)
         self._item_stream = ItemStreamStub(self.channel)
         self._item_status_stream_it = self._item_stream.ItemStatusStream(subscribe_request)
         self._itemtype_stream = ItemTypeStatusStreamStub(self.channel)
@@ -136,6 +138,7 @@ class IVIClient:
         self._player_stream = PlayerStreamStub(self.channel)
         self._player_status_stream_it = self._player_stream.PlayerStatusStream(subscribe_request)
 
+        self._closed = False
 
     async def __aenter__(self):
         """
@@ -158,95 +161,123 @@ class IVIClient:
         if ((exc.code() == grpc.StatusCode.UNKNOWN and exc.details() is not None and exc.details() == 'Received http2 header with status: 524') or 
            (exc.code() == grpc.StatusCode.INTERNAL and exc.details() is not None and exc.details() == 'Received RST_STREAM with error code 2')):
             logging.info('Cloudflare timeout (expected), moving on')
+            await asyncio.sleep(self.default_sleep_on_cloudflare_error)
         else:
-            logging.exception(exc)
-        await asyncio.sleep(self.default_sleep_on_cloudflare_error)
+            logging.exception(exc)        
 
 
     async def _item_coroutine(self) -> None:
     
-        try:
-            async for update in self._item_status_stream_it:
-                try:
-                    self._on_item_status_update(update)
-                    self._item_stream.ItemStatusConfirmation(ItemStatusConfirmRequest(
-                        environment_id=self.envid,
-                        game_inventory_id=update.game_inventory_id,
-                        tracking_id=update.tracking_id,
-                        item_state=update.item_state))
-                except Exception as e:
-                    logging.exception(e)
-        except grpc.aio.AioRpcError as e:
-            await self._handle_stream_excepton(e)
-        except Exception as e:
-            logging.exception(e)
+        while True:
+            try:
+                async for update in self._item_status_stream_it:
+                    try:
+                        self._on_item_status_update(update)
+                        self._item_stream.ItemStatusConfirmation(ItemStatusConfirmRequest(
+                            environment_id=self.envid,
+                            game_inventory_id=update.game_inventory_id,
+                            tracking_id=update.tracking_id,
+                            item_state=update.item_state))
+                    except Exception as e:
+                        logging.exception(e)
+            except grpc.aio.AioRpcError as e:
+                await self._handle_stream_excepton(e)
+            except Exception as e:
+                logging.exception(e)
+            
+            if self._closed:
+                break
+            else:
+                self._item_status_stream_it.cancel()
+                self._item_status_stream_it = self._item_stream.ItemStatusStream(IVISubscribeRequest(environment_id=self.envid))
 
 
     async def _itemtype_coroutine(self) -> None:
 
-        try:
-            async for update in self._itemtype_status_stream_it:
-                try:
-                    self._on_itemtype_status_update(update)
-                    self._itemtype_stream.ItemTypeStatusConfirmation(ItemTypeStatusConfirmRequest(
-                        environment_id=self.envid,
-                        game_item_type_id=update.game_item_type_id,
-                        tracking_id=update.tracking_id,
-                        item_type_state=update.item_type_state))
-                except Exception as e:
-                    logging.exception(e)
-        except grpc.aio.AioRpcError as e:
-            await self._handle_stream_excepton(e)
-        except Exception as e:
-            logging.exception(e)
+        while True:
+            try:
+                async for update in self._itemtype_status_stream_it:
+                    try:
+                        self._on_itemtype_status_update(update)
+                        self._itemtype_stream.ItemTypeStatusConfirmation(ItemTypeStatusConfirmRequest(
+                            environment_id=self.envid,
+                            game_item_type_id=update.game_item_type_id,
+                            tracking_id=update.tracking_id,
+                            item_type_state=update.item_type_state))
+                    except Exception as e:
+                        logging.exception(e)
+            except grpc.aio.AioRpcError as e:
+                await self._handle_stream_excepton(e)
+            except Exception as e:
+                logging.exception(e)
+
+            if self._closed:
+                break
+            else:
+                self._itemtype_status_stream_it.cancel()
+                self._itemtype_status_stream_it = self._itemtype_stream.ItemTypeStatusStream(IVISubscribeRequest(environment_id=self.envid))
 
 
     async def _order_coroutine(self) -> None:
 
-        try:
-            async for update in self._order_status_stream_it:
-                try:
-                    self._on_order_status_update(update)
-                    self._order_stream.OrderStatusConfirmation(OrderStatusConfirmRequest(
-                        environment_id=self.envid,
-                        order_id=update.order_id,
-                        order_state=update.order_state))
-                except Exception as e:
-                    logging.exception(e)
-        except grpc.aio.AioRpcError as e:
-            await self._handle_stream_excepton(e)
-        except Exception as e:
-            logging.exception(e)
+        while True:
+            try:
+                async for update in self._order_status_stream_it:
+                    try:
+                        self._on_order_status_update(update)
+                        self._order_stream.OrderStatusConfirmation(OrderStatusConfirmRequest(
+                            environment_id=self.envid,
+                            order_id=update.order_id,
+                            order_state=update.order_state))
+                    except Exception as e:
+                        logging.exception(e)
+            except grpc.aio.AioRpcError as e:
+                await self._handle_stream_excepton(e)
+            except Exception as e:
+                logging.exception(e)
+
+            if self._closed:
+                break
+            else:
+                self._order_status_stream_it.cancel()
+                self._order_status_stream_it = self._order_stream.OrderStatusStream(IVISubscribeRequest(environment_id=self.envid))
 
     
     async def _player_coroutine(self) -> None:
 
-        try:
-            async for update in self._player_status_stream_it:
-                try:
-                    self._on_player_status_update(update)
-                    self._player_stream.PlayerStatusConfirmation(PlayerStatusConfirmRequest(
-                        environment_id=self.envid,
-                        player_id=update.player_id,
-                        tracking_id=update.tracking_id,
-                        player_state=update.player_state))
-                except Exception as e:
-                    logging.exception(e)
-        except grpc.aio.AioRpcError as e:
-            await self._handle_stream_excepton(e)
-        except Exception as e:
-            logging.exception(e)
+        while True:
+            try:
+                async for update in self._player_status_stream_it:
+                    try:
+                        self._on_player_status_update(update)
+                        self._player_stream.PlayerStatusConfirmation(PlayerStatusConfirmRequest(
+                            environment_id=self.envid,
+                            player_id=update.player_id,
+                            tracking_id=update.tracking_id,
+                            player_state=update.player_state))
+                    except Exception as e:
+                        logging.exception(e)
+            except grpc.aio.AioRpcError as e:
+                await self._handle_stream_excepton(e)
+            except Exception as e:
+                logging.exception(e)
+
+            if self._closed:
+                break
+            else:
+                self._player_status_stream_it.cancel()
+                self._player_status_stream_it = self._player_stream.PlayerStatusStream(IVISubscribeRequest(environment_id=self.envid))
 
             
     def coroutines(self):
         """
         Returns a tuple of the coroutine callables which should be scheduled with asyncio,
-        eg in Python 3.6: [asyncio.ensure_future(coro()) for coro in ivi_client.coroutines()].
+        and will run until close() is called.
+        Eg in Python 3.6: [asyncio.ensure_future(coro()) for coro in ivi_client.coroutines()].
         The coroutines will execute the callbacks and, unless an Exception is
         raised, will send a confirmation message back to the IVI host.
         The coroutines will log and continue after catching an Exception - if you
         desire different behavior, don't let the Exception from your callback bubble.
-
         """
         return (self._item_coroutine, self._itemtype_coroutine, self._order_coroutine, self._player_coroutine)
 
@@ -255,6 +286,7 @@ class IVIClient:
         """
         Cancels the RPC streams which lead to callback execution and closes the underlying channel.
         """
+        self._closed = True
         self._item_status_stream_it.cancel()
         self._itemtype_status_stream_it.cancel()
         self._order_status_stream_it.cancel()

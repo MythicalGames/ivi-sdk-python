@@ -45,6 +45,7 @@ listen_port = str(random.randrange(16000, 30000))
 class FakeItemStreamServicerImpl(ItemStreamServicer):
 
     def __init__(self):
+        self.raise_error = True
         self.updates = {}
         self.confirms = []
         self.complete = asyncio.Event()
@@ -60,9 +61,15 @@ class FakeItemStreamServicerImpl(ItemStreamServicer):
                 item_state=random.choice(ItemState.values()))
 
     async def ItemStatusStream(self, request, context):
-        assert request.environment_id == ivi_envid
-        for uid, update in self.updates.items():
-            yield update
+        if self.raise_error:
+            self.raise_error = False
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details('Received RST_STREAM with error code 2')
+            yield ItemStatusUpdate()
+        else:
+            assert request.environment_id == ivi_envid
+            for uid, update in self.updates.items():
+                yield update
 
 
     async def ItemStatusConfirmation(self, request, context):
@@ -82,6 +89,7 @@ class FakeItemStreamServicerImpl(ItemStreamServicer):
 class FakeItemTypeStreamServicerImpl(ItemTypeStatusStreamServicer):
 
     def __init__(self):
+        self.raise_error = True
         self.updates = {}
         self.confirms = []
         self.complete = asyncio.Event()
@@ -97,9 +105,15 @@ class FakeItemTypeStreamServicerImpl(ItemTypeStatusStreamServicer):
                 item_type_state=random.choice(ItemTypeState.values()))
 
     async def ItemTypeStatusStream(self, request, context):
-        assert request.environment_id == ivi_envid
-        for uid, update in self.updates.items():
-            yield update
+        if self.raise_error:
+            self.raise_error = False
+            context.set_code(grpc.StatusCode.UNKNOWN)
+            context.set_details('Received http2 header with status: 524')
+            yield ItemStatusUpdate()
+        else:
+            assert request.environment_id == ivi_envid
+            for uid, update in self.updates.items():
+                yield update
 
 
     async def ItemTypeStatusConfirmation(self, request, context):
@@ -119,6 +133,7 @@ class FakeItemTypeStreamServicerImpl(ItemTypeStatusStreamServicer):
 class FakeOrderStreamServicerImpl(OrderStreamServicer):
 
     def __init__(self):
+        self.raise_error = True
         self.updates = {}
         self.confirms = []
         self.complete = asyncio.Event()
@@ -132,9 +147,14 @@ class FakeOrderStreamServicerImpl(OrderStreamServicer):
                 order_state=random.choice(OrderState.values()))
 
     async def OrderStatusStream(self, request, context):
-        assert request.environment_id == ivi_envid
-        for uid, update in self.updates.items():
-            yield update
+        if self.raise_error:
+            self.raise_error = False
+            context.set_code(grpc.StatusCode.NOT_FOUND)
+            yield ItemStatusUpdate()
+        else:
+            assert request.environment_id == ivi_envid
+            for uid, update in self.updates.items():
+                yield update
 
 
     async def OrderStatusConfirmation(self, request, context):
@@ -153,6 +173,7 @@ class FakeOrderStreamServicerImpl(OrderStreamServicer):
 class FakePlayerStreamServicerImpl(PlayerStreamServicer):
 
     def __init__(self):
+        self.raise_error = True
         self.updates = {}
         self.confirms = []
         self.complete = asyncio.Event()
@@ -168,9 +189,14 @@ class FakePlayerStreamServicerImpl(PlayerStreamServicer):
                 player_state=random.choice(PlayerState.values()))
 
     async def PlayerStatusStream(self, request, context):
-        assert request.environment_id == ivi_envid
-        for uid, update in self.updates.items():
-            yield update
+        if self.raise_error:
+            self.raise_error = False
+            context.set_code(grpc.StatusCode.UNAUTHENTICATED)
+            yield ItemStatusUpdate()
+        else:
+            assert request.environment_id == ivi_envid
+            for uid, update in self.updates.items():
+                yield update
 
 
     async def PlayerStatusConfirmation(self, request, context):
