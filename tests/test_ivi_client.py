@@ -2,9 +2,7 @@ import asyncio
 import google.protobuf
 import grpc
 import pytest
-
 import random
-
 from ivi_sdk.ivi_client import IVIClient
 from ivi_sdk.api.item.rpc_pb2_grpc import ItemServiceStub
 from ivi_sdk.api.item.definition_pb2 import IssueItemRequest
@@ -12,35 +10,50 @@ from ivi_sdk.common.item.definition_pb2 import ItemState
 from ivi_sdk.common.itemtype.definition_pb2 import ItemTypeState
 from ivi_sdk.common.order.definition_pb2 import OrderState
 from ivi_sdk.common.player.definition_pb2 import PlayerState
-from ivi_sdk.streams.item.stream_pb2 import ItemStatusUpdate, ItemStatusConfirmRequest
-from ivi_sdk.streams.item.stream_pb2_grpc import ItemStreamServicer, add_ItemStreamServicer_to_server
-from ivi_sdk.streams.itemtype.stream_pb2 import ItemTypeStatusUpdate, ItemTypeStatusConfirmRequest
-from ivi_sdk.streams.itemtype.stream_pb2_grpc import ItemTypeStatusStreamServicer, add_ItemTypeStatusStreamServicer_to_server
-from ivi_sdk.streams.order.stream_pb2 import OrderStatusUpdate, OrderStatusConfirmRequest
-from ivi_sdk.streams.order.stream_pb2_grpc import OrderStreamServicer, add_OrderStreamServicer_to_server
-from ivi_sdk.streams.player.stream_pb2 import PlayerStatusUpdate, PlayerStatusConfirmRequest
-from ivi_sdk.streams.player.stream_pb2_grpc import PlayerStreamServicer, add_PlayerStreamServicer_to_server
+from ivi_sdk.streams.item.stream_pb2 import ItemStatusUpdate
+from ivi_sdk.streams.item.stream_pb2_grpc import (
+    ItemStreamServicer,
+    add_ItemStreamServicer_to_server)
+from ivi_sdk.streams.itemtype.stream_pb2 import ItemTypeStatusUpdate
+from ivi_sdk.streams.itemtype.stream_pb2_grpc import (
+    ItemTypeStatusStreamServicer,
+    add_ItemTypeStatusStreamServicer_to_server)
+from ivi_sdk.streams.order.stream_pb2 import OrderStatusUpdate
+from ivi_sdk.streams.order.stream_pb2_grpc import (
+    OrderStreamServicer,
+    add_OrderStreamServicer_to_server)
+from ivi_sdk.streams.player.stream_pb2 import PlayerStatusUpdate
+from ivi_sdk.streams.player.stream_pb2_grpc import (
+    PlayerStreamServicer,
+    add_PlayerStreamServicer_to_server)
 
-def random_string(length:int):
+
+def random_string(length: int):
     from string import ascii_letters, digits
     chars = ascii_letters+digits
     return ''.join(random.choice(chars) for i in range(length))
 
-def item_update(msg:ItemStatusUpdate):
+
+def item_update(msg: ItemStatusUpdate):
     pass
 
-def itemtype_update(msg:ItemTypeStatusUpdate):
+
+def itemtype_update(msg: ItemTypeStatusUpdate):
     pass
 
-def order_update(msg:OrderStatusUpdate):
+
+def order_update(msg: OrderStatusUpdate):
     pass
 
-def player_updated(msg:PlayerStatusUpdate):
+
+def player_updated(msg: PlayerStatusUpdate):
     pass
+
 
 ivi_envid = random_string(12)
 num_messages = 1000
 listen_port = str(random.randrange(16000, 30000))
+
 
 class FakeItemStreamServicerImpl(ItemStreamServicer):
 
@@ -71,7 +84,6 @@ class FakeItemStreamServicerImpl(ItemStreamServicer):
             for uid, update in self.updates.items():
                 yield update
 
-
     async def ItemStatusConfirmation(self, request, context):
         assert request.game_inventory_id in self.updates
         assert request.game_inventory_id not in self.confirms
@@ -79,12 +91,11 @@ class FakeItemStreamServicerImpl(ItemStreamServicer):
         assert update.tracking_id == request.tracking_id
         assert update.item_state == request.item_state
         assert ivi_envid == request.environment_id
-        
         self.confirms.append(request.game_inventory_id)
         if len(self.confirms) == num_messages:
             self.complete.set()
-            
         return google.protobuf.empty_pb2.Empty()
+
 
 class FakeItemTypeStreamServicerImpl(ItemTypeStatusStreamServicer):
 
@@ -115,7 +126,6 @@ class FakeItemTypeStreamServicerImpl(ItemTypeStatusStreamServicer):
             for uid, update in self.updates.items():
                 yield update
 
-
     async def ItemTypeStatusConfirmation(self, request, context):
         assert request.game_item_type_id in self.updates
         assert request.game_item_type_id not in self.confirms
@@ -123,12 +133,11 @@ class FakeItemTypeStreamServicerImpl(ItemTypeStatusStreamServicer):
         assert update.tracking_id == request.tracking_id
         assert update.item_type_state == request.item_type_state
         assert ivi_envid == request.environment_id
-        
         self.confirms.append(request.game_item_type_id)
         if len(self.confirms) == num_messages:
             self.complete.set()
-            
         return google.protobuf.empty_pb2.Empty()
+
 
 class FakeOrderStreamServicerImpl(OrderStreamServicer):
 
@@ -156,19 +165,17 @@ class FakeOrderStreamServicerImpl(OrderStreamServicer):
             for uid, update in self.updates.items():
                 yield update
 
-
     async def OrderStatusConfirmation(self, request, context):
         assert request.order_id in self.updates
         assert request.order_id not in self.confirms
         update = self.updates[request.order_id]
         assert update.order_state == request.order_state
         assert ivi_envid == request.environment_id
-        
         self.confirms.append(request.order_id)
         if len(self.confirms) == num_messages:
             self.complete.set()
-            
         return google.protobuf.empty_pb2.Empty()
+
 
 class FakePlayerStreamServicerImpl(PlayerStreamServicer):
 
@@ -198,7 +205,6 @@ class FakePlayerStreamServicerImpl(PlayerStreamServicer):
             for uid, update in self.updates.items():
                 yield update
 
-
     async def PlayerStatusConfirmation(self, request, context):
         assert request.player_id in self.updates
         assert request.player_id not in self.confirms
@@ -206,12 +212,11 @@ class FakePlayerStreamServicerImpl(PlayerStreamServicer):
         assert update.tracking_id == request.tracking_id
         assert update.player_state == request.player_state
         assert ivi_envid == request.environment_id
-        
         self.confirms.append(request.player_id)
         if len(self.confirms) == num_messages:
             self.complete.set()
-            
         return google.protobuf.empty_pb2.Empty()
+
 
 async def run_server() -> None:
     server = grpc.aio.server()
@@ -225,51 +230,63 @@ async def test_client():
 
     assert num_messages % 2 == 0
     server = await run_server()
-    
     item_stream_service = FakeItemStreamServicerImpl()
     item_type_stream_service = FakeItemTypeStreamServicerImpl()
     order_stream_service = FakeOrderStreamServicerImpl()
     player_stream_service = FakePlayerStreamServicerImpl()
-    
     add_ItemStreamServicer_to_server(item_stream_service, server)
-    add_ItemTypeStatusStreamServicer_to_server(item_type_stream_service, server)
-    add_OrderStreamServicer_to_server(order_stream_service, server)
-    add_PlayerStreamServicer_to_server(player_stream_service, server)
-    
+    add_ItemTypeStatusStreamServicer_to_server(
+        item_type_stream_service, server)
+    add_OrderStreamServicer_to_server(
+        order_stream_service, server)
+    add_PlayerStreamServicer_to_server(
+        player_stream_service, server)
     ivi_server = 'localhost:' + listen_port
     async with grpc.aio.insecure_channel(ivi_server) as channel:
-        ivi_client = IVIClient(ivi_server, ivi_envid, random_string(64),
-                        item_update, itemtype_update, order_update, player_updated,
-                        channel = channel)
-        
+        ivi_client = IVIClient(
+                        ivi_server,
+                        ivi_envid,
+                        random_string(64),
+                        item_update,
+                        itemtype_update,
+                        order_update,
+                        player_updated,
+                        channel=channel)
         assert ivi_client.item_service is not None
         assert ivi_client.itemtype_service is not None
         assert ivi_client.order_service is not None
         assert ivi_client.payment_service is not None
         assert ivi_client.player_service is not None
-        
         [asyncio.ensure_future(coro()) for coro in ivi_client.coroutines()]
-
-        await asyncio.wait_for(item_stream_service.complete.wait(), timeout=10)
-        await asyncio.wait_for(item_type_stream_service.complete.wait(), timeout=10)
-        await asyncio.wait_for(order_stream_service.complete.wait(), timeout=10)
-        await asyncio.wait_for(player_stream_service.complete.wait(), timeout=10)
-        
+        await asyncio.wait_for(
+            item_stream_service.complete.wait(),
+            timeout=10)
+        await asyncio.wait_for(
+            item_type_stream_service.complete.wait(),
+            timeout=10)
+        await asyncio.wait_for(
+            order_stream_service.complete.wait(),
+            timeout=10)
+        await asyncio.wait_for(
+            player_stream_service.complete.wait(),
+            timeout=10)
         await ivi_client.close()
         await server.stop(1.0)
-        
         assert num_messages == len(item_stream_service.confirms)
-        assert len(item_stream_service.updates) == len(item_stream_service.confirms)
-
-        assert num_messages == len(item_type_stream_service.confirms)
-        assert len(item_type_stream_service.updates) == len(item_type_stream_service.confirms)
-
-        assert num_messages == len(order_stream_service.confirms)
-        assert len(order_stream_service.updates) == len(order_stream_service.confirms)
-
-        assert num_messages == len(player_stream_service.confirms)
-        assert len(player_stream_service.updates) == len(player_stream_service.confirms)
-
+        assert (len(item_stream_service.updates) ==
+                len(item_stream_service.confirms))
+        assert (num_messages ==
+                len(item_type_stream_service.confirms))
+        assert (len(item_type_stream_service.updates) ==
+                len(item_type_stream_service.confirms))
+        assert (num_messages ==
+                len(order_stream_service.confirms))
+        assert (len(order_stream_service.updates) ==
+                len(order_stream_service.confirms))
+        assert (num_messages ==
+                len(player_stream_service.confirms))
+        assert (len(player_stream_service.updates) ==
+                len(player_stream_service.confirms))
         # ensure channel closure
         try:
             item_service = ItemServiceStub(channel)
@@ -277,43 +294,51 @@ async def test_client():
             assert False
         except grpc.aio.UsageError:
             pass
-        
+
 
 @pytest.mark.asyncio
 async def test_client_async_with():
 
     assert num_messages % 2 == 0
     server = await run_server()
-    
     item_stream_service = FakeItemStreamServicerImpl()
     item_type_stream_service = FakeItemTypeStreamServicerImpl()
     order_stream_service = FakeOrderStreamServicerImpl()
     player_stream_service = FakePlayerStreamServicerImpl()
-    
     add_ItemStreamServicer_to_server(item_stream_service, server)
-    add_ItemTypeStatusStreamServicer_to_server(item_type_stream_service, server)
-    add_OrderStreamServicer_to_server(order_stream_service, server)
-    add_PlayerStreamServicer_to_server(player_stream_service, server)
-    
+    add_ItemTypeStatusStreamServicer_to_server(
+        item_type_stream_service, server)
+    add_OrderStreamServicer_to_server(
+        order_stream_service, server)
+    add_PlayerStreamServicer_to_server(
+        player_stream_service, server)
     ivi_server = 'localhost:' + listen_port
+
     async with grpc.aio.insecure_channel(ivi_server) as channel:
         async with IVIClient(ivi_server, ivi_envid, random_string(64),
-                        item_update, itemtype_update, order_update, player_updated,
-                        channel = channel) as ivi_client:
-        
+                             item_update, itemtype_update,
+                             order_update, player_updated,
+                             channel=channel) as ivi_client:
             assert ivi_client.item_service is not None
             assert ivi_client.itemtype_service is not None
             assert ivi_client.order_service is not None
             assert ivi_client.payment_service is not None
             assert ivi_client.player_service is not None
-            
-            [asyncio.ensure_future(coro()) for coro in ivi_client.coroutines()]
+            [asyncio.ensure_future(coro())
+                for coro in ivi_client.coroutines()]
+            await asyncio.wait_for(
+                item_stream_service.complete.wait(),
+                timeout=10)
+            await asyncio.wait_for(
+                item_type_stream_service.complete.wait(),
+                timeout=10)
+            await asyncio.wait_for(
+                order_stream_service.complete.wait(),
+                timeout=10)
+            await asyncio.wait_for(
+                player_stream_service.complete.wait(),
+                timeout=10)
 
-            await asyncio.wait_for(item_stream_service.complete.wait(), timeout=10)
-            await asyncio.wait_for(item_type_stream_service.complete.wait(), timeout=10)
-            await asyncio.wait_for(order_stream_service.complete.wait(), timeout=10)
-            await asyncio.wait_for(player_stream_service.complete.wait(), timeout=10)
-        
         # ensure channel closure
         try:
             item_service = ItemServiceStub(channel)
@@ -322,17 +347,18 @@ async def test_client_async_with():
         except grpc.aio.UsageError:
             pass
 
-            
     await server.stop(1.0)
-    
-    assert num_messages == len(item_stream_service.confirms)
-    assert len(item_stream_service.updates) == len(item_stream_service.confirms)
-
-    assert num_messages == len(item_type_stream_service.confirms)
-    assert len(item_type_stream_service.updates) == len(item_type_stream_service.confirms)
-
-    assert num_messages == len(order_stream_service.confirms)
-    assert len(order_stream_service.updates) == len(order_stream_service.confirms)
-
-    assert num_messages == len(player_stream_service.confirms)
-    assert len(player_stream_service.updates) == len(player_stream_service.confirms)
+    assert (len(item_stream_service.updates) ==
+            len(item_stream_service.confirms))
+    assert (num_messages ==
+            len(item_type_stream_service.confirms))
+    assert (len(item_type_stream_service.updates) ==
+            len(item_type_stream_service.confirms))
+    assert (num_messages ==
+            len(order_stream_service.confirms))
+    assert (len(order_stream_service.updates) ==
+            len(order_stream_service.confirms))
+    assert (num_messages ==
+            len(player_stream_service.confirms))
+    assert (len(player_stream_service.updates) ==
+            len(player_stream_service.confirms))
