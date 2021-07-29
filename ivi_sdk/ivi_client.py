@@ -55,8 +55,10 @@ class IVIClient:
         The production IVI endpoint
     channel_options : List of tuples
         Default options passed to the underlying gRPC channel
-    default_sleep_on_cloudflare_error : int
+    default_sleep_on_cloudflare_error : float
         Default amount of time to wait after a Cloudflare timeout
+    default_close_grace : float
+        Default amount of time to wait for RPCs to finish gracefully on close()
     Methods
     -------
     coroutines()
@@ -76,7 +78,8 @@ class IVIClient:
 
     default_host = 'sdk-api.iviengine.com:443'
     default_channel_options = [('grpc.keepalive_time_ms', 30 * 1000)]
-    default_sleep_on_cloudflare_error = 1
+    default_sleep_on_cloudflare_error = 1.0
+    default_close_grace = 5.0
 
     def __init__(
         self,
@@ -180,6 +183,10 @@ class IVIClient:
         else:
             logging.exception(exc)
 
+    async def _handle_cancel_exception(self, exc):
+        if not self._closed:
+            logging.exception(exc)
+
     async def _item_coroutine(self) -> None:
         while not self._closed:
             self._item_status_stream_it = (
@@ -199,6 +206,8 @@ class IVIClient:
                         logging.exception(e)
             except grpc.aio.AioRpcError as e:
                 await self._handle_stream_excepton(e)
+            except asyncio.CancelledError as e:
+                await self._handle_cancel_exception(e)
             except Exception as e:
                 logging.exception(e)
             finally:
@@ -223,6 +232,8 @@ class IVIClient:
                         logging.exception(e)
             except grpc.aio.AioRpcError as e:
                 await self._handle_stream_excepton(e)
+            except asyncio.CancelledError as e:
+                await self._handle_cancel_exception(e)
             except Exception as e:
                 logging.exception(e)
             finally:
@@ -246,6 +257,8 @@ class IVIClient:
                         logging.exception(e)
             except grpc.aio.AioRpcError as e:
                 await self._handle_stream_excepton(e)
+            except asyncio.CancelledError as e:
+                await self._handle_cancel_exception(e)
             except Exception as e:
                 logging.exception(e)
             finally:
@@ -270,6 +283,8 @@ class IVIClient:
                         logging.exception(e)
             except grpc.aio.AioRpcError as e:
                 await self._handle_stream_excepton(e)
+            except asyncio.CancelledError as e:
+                await self._handle_cancel_exception(e)
             except Exception as e:
                 logging.exception(e)
             finally:
@@ -292,18 +307,22 @@ class IVIClient:
                 self._order_coroutine,
                 self._player_coroutine)
 
-    async def close(self):
+    async def close(self, grace: float = default_close_grace):
         """
         Cancels the RPC streams which lead to callback execution and closes
-        the underlying channel.
-
+        the underlying channel.  Subsequent RPC calls on this channel
+        will raise.
+        Parameters
+        ----------
+        grace : float
+            Grace period to allow active RPCs to finish, in seconds
         """
         self._closed = True
         self._item_status_stream_it.cancel()
         self._itemtype_status_stream_it.cancel()
         self._order_status_stream_it.cancel()
         self._player_status_stream_it.cancel()
-        await self.channel.close()
+        await self.channel.close(grace)
 
     class _IVIMetadataPlugin(grpc.AuthMetadataPlugin):
         """
