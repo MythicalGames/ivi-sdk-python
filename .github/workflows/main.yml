@@ -1,0 +1,70 @@
+name: main deployment to pypi
+on:
+  workflow_dispatch:
+  push:
+    branches: [develop]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: GCloud Init
+        if: github.ref == 'refs/heads/develop'
+        uses: google-github-actions/setup-gcloud@master
+        with:
+          project_id: ${{ secrets.GCS_PROJECT }}
+          service_account_key: ${{ secrets.KFP_SECRET_PROD }}
+          export_default_credentials: true
+
+      #- name: GCloud Init
+        #if: github.ref == 'refs/heads/master'
+        #uses: google-github-actions/setup-gcloud@master
+        #with:
+          #project_id: ${{ secrets.GCS_PROJECT }}
+          #service_account_key: ${{ secrets.KFP_SECRET_PROD }}
+          #export_default_credentials: true
+
+      - name: pip install kfp
+        run: |
+          pip install kfp --upgrade
+
+      #- name: Run KFP on qa
+        #if: github.ref == 'refs/heads/develop'
+        #run: |
+          #python deploy_pipeline.py qa
+          #
+      #- name: Run KFP on prod
+        #if: github.ref == 'refs/heads/master'
+        #run: |
+          #python deploy_bid_pipeline.py prod
+          #python deploy_ask_pipeline.py prod
+
+
+      - name: Run KFP on prod
+        if: github.ref == 'refs/heads/develop'
+        run: |
+          python deploy_bid_pipeline.py prod
+          python deploy_ask_pipeline.py prod
+
+
+      - name: Slack Notification
+        uses: 8398a7/action-slack@v3
+        if: always()
+        with:
+          status: custom
+          fields: workflow,job,commit,repo,ref,author,took,message
+          custom_payload: |
+            {
+              username: 'github-actions',
+              icon_emoji: ':octocat:',
+              attachments: [{
+                color: '${{ job.status }}' === 'success' ? 'good' : '${{ job.status }}' === 'failure' ? 'danger' : 'warning',
+                text: `${process.env.AS_WORKFLOW}\n${process.env.AS_JOB} (${process.env.AS_COMMIT}) of ${process.env.AS_REPO} by ${process.env.AS_AUTHOR} finished in ${process.env.AS_TOOK}\nMessage: ${process.env.AS_MESSAGE}`,
+              }]
+            }
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
