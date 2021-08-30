@@ -11,44 +11,18 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: GCloud Init
-        if: github.ref == 'refs/heads/develop'
-        uses: google-github-actions/setup-gcloud@master
-        with:
-          project_id: ${{ secrets.GCS_PROJECT }}
-          service_account_key: ${{ secrets.KFP_SECRET_PROD }}
-          export_default_credentials: true
-
-      #- name: GCloud Init
-        #if: github.ref == 'refs/heads/master'
-        #uses: google-github-actions/setup-gcloud@master
-        #with:
-          #project_id: ${{ secrets.GCS_PROJECT }}
-          #service_account_key: ${{ secrets.KFP_SECRET_PROD }}
-          #export_default_credentials: true
-
       - name: pip install kfp
         run: |
-          pip install kfp --upgrade
+          pip install --upgrade build
+          pip install --upgrade twine
 
-      #- name: Run KFP on qa
-        #if: github.ref == 'refs/heads/develop'
-        #run: |
-          #python deploy_pipeline.py qa
-          #
-      #- name: Run KFP on prod
-        #if: github.ref == 'refs/heads/master'
-        #run: |
-          #python deploy_bid_pipeline.py prod
-          #python deploy_ask_pipeline.py prod
-
-
-      - name: Run KFP on prod
-        if: github.ref == 'refs/heads/develop'
+      - name: build files
         run: |
-          python deploy_bid_pipeline.py prod
-          python deploy_ask_pipeline.py prod
+          python -m build
 
+      - name: push to pypi
+        run: |
+          python -m twine upload dist/* -u "__token__" -p ${{ secrets.PYPI_SECRET }}
 
       - name: Slack Notification
         uses: 8398a7/action-slack@v3
