@@ -1,0 +1,44 @@
+name: main deployment to pypi
+on:
+  workflow_dispatch:
+  push:
+    branches: [develop]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: pip install kfp
+        run: |
+          pip install --upgrade build
+          pip install --upgrade twine
+
+      - name: build files
+        run: |
+          python -m build
+
+      - name: push to pypi
+        run: |
+          python -m twine upload dist/* -u "__token__" -p ${{ secrets.PYPI_SECRET }}
+
+      - name: Slack Notification
+        uses: 8398a7/action-slack@v3
+        if: always()
+        with:
+          status: custom
+          fields: workflow,job,commit,repo,ref,author,took,message
+          custom_payload: |
+            {
+              username: 'github-actions',
+              icon_emoji: ':octocat:',
+              attachments: [{
+                color: '${{ job.status }}' === 'success' ? 'good' : '${{ job.status }}' === 'failure' ? 'danger' : 'warning',
+                text: `${process.env.AS_WORKFLOW}\n${process.env.AS_JOB} (${process.env.AS_COMMIT}) of ${process.env.AS_REPO} by ${process.env.AS_AUTHOR} finished in ${process.env.AS_TOOK}\nMessage: ${process.env.AS_MESSAGE}`,
+              }]
+            }
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}

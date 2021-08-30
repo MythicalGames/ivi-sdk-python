@@ -4,7 +4,9 @@ import re
 from setuptools import setup
 from setuptools.command.build_py import build_py
 import subprocess
+import os
 
+cwd = os.path.dirname(os.path.abspath(__file__))
 
 class ivi_build_py(build_py):
     def run(self):
@@ -46,13 +48,19 @@ class ivi_build_py(build_py):
 
 base_requires = ['grpcio==1.34.0', 'protobuf<4.0dev,>=3.5.0.post1']
 
+with open(os.path.join(cwd, "README.md"), encoding="utf-8") as f:
+    long_description = f.read()
+
 setup(
     name='ivi_sdk',
     version='0.1',
     description='Simple IVI gRPC stream API wrapper',
+    long_description=long_description,
+    long_description_content_type="text/markdown",
     packages=[''],
     package_dir={'': 'ivi_sdk'},
     install_requires=base_requires,
     setup_requires=base_requires + ['grpcio-tools==1.34.0'],
     test_requires=base_requires + ['pytest', 'pytest-asyncio'],
+    python_requires='>=3.6',
     cmdclass={'build_py': ivi_build_py})
